@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Canvas Images</title>
+    <style>
+        #canvas {
+            border: 1px solid #999;
+            margin: 1rem auto;
+            display: block;
+            /* position: relative; */
+        }
+        img {
+            width: 100%;
+        }
+        .bottonBox {
+            width: 600px;
+            text-align: right;
+            margin: auto;
+        }
+        .button {
+           font-size: 26px;
+           color: rgb(39, 38, 38);
+           width: 40px;
+           cursor: pointer;
+        }
+        .popover {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 5px;
+            display: none;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="bottonBox">
+        <button class="button" onclick="zoomOut()">-</button>
+        <button class="button" onclick="zoomIn()">+</button>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    <div id="popover" class="popover"></div>
+   
+    <script>
+        let canvas, ctx, scale = 1, imgObj, imgWidth, imgHeight;
+        let offsetX = 0, offsetY = 0, startX, startY, isDragging = false;
+        let initialDistance = 0, initialScale = 1, initialOffsetX = 0, initialOffsetY = 0;
+
+        
+        // const rectangles = [
+        //    { id: 6, p1: {x:19.762854605907776, y:39.87242595928762}, p2: {x:22.467245236189893, y:36.96000528052226}, p3: {x:23.92345557557257, y:38.27752892091611}, p4: {x:21.28840829478487, y:41.3286362986703}, reservedBy: "moosa", reservedDate: "2024-04-01", isReserved: false }
+        // ];
+        let rectangles = [
+    {
+        "section": 3,
+        "bed": 1,
+        "id": 7,
+        "p1": {
+            "x": 64.81597378362096,
+            "y": 44.070277488598165
+        },
+        "p2": {
+            "x": 66.24868761615016,
+            "y": 45.50299132112736
+        },
+        "p3": {
+            "x": 69.11411528120857,
+            "y": 42.69487220937013
+        },
+        "p4": {
+            "x": 67.91063566188403,
+            "y": 41.43408403674444
+        }
+    },
+    {
+        "section": 3,
+        "bed": 2,
+        "id": 10,
+        "p1": {
+            "x": 68.1398698750887,
+            "y": 41.03292416363626
+        },
+        "p2": {
+            "x": 69.51527515431674,
+            "y": 42.064478123057285
+        },
+        "p3": {
+            "x": 72.38070281937513,
+            "y": 39.714827437709395
+        },
+        "p4": {
+            "x": 71.11991464674944,
+            "y": 38.22480505187903
+        }
+    },
+  
+]
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            canvas.width = 590;
+            canvas.height = 1000
+
+            imgObj = new Image();
+            imgObj.onload = function() {
+                imgWidth = imgObj.naturalWidth;
+                imgHeight = imgObj.naturalHeight;
+                drawImage();
+            };
+
+            imgObj.src = './Map.jpg';
+
+            canvas.addEventListener('click', colorChannel);
+            canvas.addEventListener('mousedown', startPan);
+            canvas.addEventListener('mousemove', pan);
+            canvas.addEventListener('mouseup', endPan);
+            canvas.addEventListener('mouseout', endPan);
+            canvas.addEventListener('mousemove', handleMouseMove);
+
+            canvas.addEventListener('touchstart', handleTouchStart);
+            canvas.addEventListener('touchmove', handleTouchMove);
+            canvas.addEventListener('touchend', handleTouchEnd);
+        });
+
+        const drawImage = function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+            ctx.drawImage(imgObj, 0, 0, imgWidth, imgHeight, 0, 0, canvas.width, canvas.width * (imgHeight / imgWidth));
+            rectangles.forEach(rect => {
+                drawGreenRectangle(rect);
+            });
+            ctx.restore();
+        };
+
+        const startPan = function(event) {
+            isDragging = true;
+            startX = event.offsetX - offsetX;
+            startY = event.offsetY - offsetY;
+        };
+
+        const pan = function(event) {
+            if (!isDragging) return;
+            offsetX = event.offsetX - startX;
+            offsetY = event.offsetY - startY;
+            drawImage();
+        };
+
+        const endPan = function() {
+            isDragging = false;
+        };
+
+        const handleTouchStart = function(event) {
+            if (event.touches.length === 1) {
+                isDragging = true;
+                startX = event.touches[0].pageX - offsetX;
+                startY = event.touches[0].pageY - offsetY;
+            } else if (event.touches.length === 2) {
+                isDragging = false;
+                initialDistance = getDistance(event.touches[0], event.touches[1]);
+                initialScale = scale;
+                initialOffsetX = offsetX;
+                initialOffsetY = offsetY;
+            }
+        };
+
+        const handleTouchMove = function(event) {
+            event.preventDefault();
+            if (event.touches.length === 1 && isDragging) {
+                offsetX = event.touches[0].pageX - startX;
+                offsetY = event.touches[0].pageY - startY;
+                drawImage();
+            } else if (event.touches.length === 2) {
+                const newDistance = getDistance(event.touches[0], event.touches[1]);
+                const zoomFactor = newDistance / initialDistance;
+                scale = initialScale * zoomFactor;
+
+                const centerX = (event.touches[0].pageX + event.touches[1].pageX) / 2;
+                const centerY = (event.touches[0].pageY + event.touches[1].pageY) / 2;
+
+                offsetX = centerX - (centerX - initialOffsetX) / initialScale * scale;
+                offsetY = centerY - (centerY - initialOffsetY) / initialScale * scale;
+
+                drawImage();
+            }
+        };
+
+        const handleTouchEnd = function(event) {
+            if (event.touches.length < 2) {
+                isDragging = false;
+            }
+        };
+
+        const getDistance = function(touch1, touch2) {
+            return Math.sqrt(
+                Math.pow(touch1.pageX - touch2.pageX, 2) +
+                Math.pow(touch1.pageY - touch2.pageY, 2)
+            );
+        };
+
+        const colorChannel = function() {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const arr = imgData.data;
+            for (let i = 0; i < arr.length; i += 4) {
+                arr[i] = 0; // R
+                arr[i + 2] = 0; // B
+            }
+            ctx.putImageData(imgData, 0, 0);
+        };
+
+        const drawGreenRectangle = function(rect) {
+            ctx.fillStyle = rect.isReserved ? 'rgba(255, 0, 0, 0.5)' : 'rgba(0, 128, 0, 0.5)';
+            ctx.beginPath();
+            ctx.moveTo(rect.p1.x, rect.p1.y); // Top-left
+            ctx.lineTo(rect.p2.x, rect.p2.y); // Top-right
+            ctx.lineTo(rect.p3.x, rect.p3.y); // Bottom-right
+            ctx.lineTo(rect.p4.x, rect.p4.y); // Bottom-left
+            ctx.closePath();
+            ctx.fill();
+        };
+
+        // Function to zoom in
+        const zoomIn = function() {
+            scale *= 1.1;
+            drawImage();
+        };
+
+        // Function to zoom out
+        const zoomOut = function() {
+            scale /= 1.1;
+            drawImage();
+        };
+
+        // Prevent zooming using mouse scroll
+        window.addEventListener('wheel', function(event) {
+            event.preventDefault();
+        }, { passive: false });
+        
+        // Prevent zooming using touch events
+        window.addEventListener('touchmove', function(event) {
+            event.preventDefault();
+        }, { passive: false });
+
+        const handleMouseMove = function(event) {
+            const mouseX = (event.offsetX - offsetX) / scale;
+            const mouseY = (event.offsetY - offsetY) / scale;
+            const popover = document.getElementById('popover');
+            let found = false;
+
+            rectangles.forEach(rect => {
+                if (ctx.isPointInPath(new Path2D(getRectanglePath(rect)), mouseX, mouseY)) {
+                    popover.style.left = `${event.pageX + 10}px`;
+                    popover.style.top = `${event.pageY + 10}px`;
+                    popover.innerHTML = `
+                        <strong>ID:</strong> ${rect.id}<br>
+                        <strong>Reserved By:</strong> ${rect.reservedBy}<br>
+                        <strong>Reserved Date:</strong> ${rect.reservedDate}
+                    `;
+                    popover.style.display = 'block';
+                    found = true;
+                }
+            });
+
+            if (!found) {
+                popover.style.display = 'none';
+            }
+        };
+        const getRectanglePath = function(rect) {
+            return `M ${rect.p1.x} ${rect.p1.y} L ${rect.p2.x} ${rect.p2.y} L ${rect.p3.x} ${rect.p3.y} L ${rect.p4.x} ${rect.p4.y} Z`;
+        };
+    </script>
+</body>
+</html>
